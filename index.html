@@ -211,6 +211,16 @@
   }
 
   #finalSection { display: none; }
+
+  .phase-label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  #speedNumber {
+    font-family: var(--font-mono);
+    font-size: 38px;
+    font-weight: 600;
+    color: var(--text-faint);
+    line-height: 1;
+  }
+  #speedNumber .unit { font-size: 15px; color: var(--text-dim); margin-left: 4px; }
   .final-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
 
   @media (max-width: 520px) {
@@ -319,6 +329,37 @@
       <button class="secondary-btn" id="resetBtn">Nouveau test</button>
     </div>
   </div>
+
+  <div class="panel">
+    <h2>Débit réseau</h2>
+    <div class="subtitle" style="margin-bottom:18px;">Test ponctuel du débit descendant et montant, via l'infrastructure publique de Cloudflare.</div>
+    <div class="controls-grid" style="margin-bottom:16px;">
+      <div class="field">
+        <label for="speedDurationSelect">Durée par sens</label>
+        <select id="speedDurationSelect">
+          <option value="5">5 s</option>
+          <option value="10" selected>10 s</option>
+          <option value="20">20 s</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions" style="margin-bottom:6px;">
+      <button id="speedStartBtn">Lancer le test de débit</button>
+    </div>
+
+    <div class="readout" style="padding-top:10px;">
+      <div class="phase-label" id="speedPhaseLabel">Prêt</div>
+      <span id="speedNumber">—</span>
+    </div>
+
+    <div class="stats-row" style="grid-template-columns: 1fr 1fr;">
+      <div class="stat"><div class="label">Débit descendant</div><div class="value" id="speedDown">–</div></div>
+      <div class="stat"><div class="label">Débit montant</div><div class="value" id="speedUp">–</div></div>
+    </div>
+    <div class="hint">
+      Contrairement au ping, ce test consomme réellement de la bande passante : il transfère des données pendant quelques secondes dans chaque sens. Il n'est pas fait pour tourner en continu.
+    </div>
+  </div>
 </div>
 
 <script>
@@ -334,6 +375,12 @@ const finalCanvas = document.getElementById('finalCanvas');
 const finalSection = document.getElementById('finalSection');
 const statusDot = document.getElementById('statusDot');
 const liveStatusEl = document.getElementById('liveStatus');
+const speedStartBtn = document.getElementById('speedStartBtn');
+const speedDurationSelect = document.getElementById('speedDurationSelect');
+const speedPhaseLabel = document.getElementById('speedPhaseLabel');
+const speedNumber = document.getElementById('speedNumber');
+const speedDownEl = document.getElementById('speedDown');
+const speedUpEl = document.getElementById('speedUp');
 
 targetSelect.addEventListener('change', () => {
   customField.style.display = targetSelect.value === 'custom' ? 'flex' : 'none';
@@ -524,6 +571,7 @@ function startTest() {
   customUrl.disabled = true;
   intervalSelect.disabled = true;
   durationSelect.disabled = true;
+  speedStartBtn.disabled = true;
 
   const interval = parseInt(intervalSelect.value, 10);
   const durSec = parseInt(durationSelect.value, 10);
@@ -549,6 +597,7 @@ function stopTest() {
   customUrl.disabled = false;
   intervalSelect.disabled = false;
   durationSelect.disabled = false;
+  speedStartBtn.disabled = false;
   setStatus('done', 'Terminé');
   renderFinal();
 }
@@ -594,6 +643,77 @@ window.addEventListener('resize', () => {
   renderLive();
   if (finalSection.style.display === 'block') renderFinal();
 });
+
+function randomBuffer(size) {
+  const buf = new Uint8Array(size);
+  const CHUNK = 65536;
+  for (let i = 0; i < size; i += CHUNK) {
+    crypto.getRandomValues(buf.subarray(i, Math.min(i + CHUNK, size)));
+  }
+  return buf;
+}
+
+async function runThroughputPhase(direction, durationMs) {
+  const PARALLEL = 4;
+  const CHUNK_BYTES = direction === 'down' ? 4000000 : 1000000;
+  const uploadBuffer = direction === 'up' ? randomBuffer(CHUNK_BYTES) : null;
+
+  let totalBytes = 0;
+  const start = performance.now();
+
+  while (performance.now() - start < durationMs) {
+    const requests = [];
+    for (let i = 0; i < PARALLEL; i++) {
+      if (direction === 'down') {
+        const url = 'https://speed.cloudflare.com/__down?bytes=' + CHUNK_BYTES + '&cb=' + Math.random();
+        requests.push(fetch(url, { cache: 'no-store' }).then(r => r.blob()).then(b => b.size));
+      } else {
+        const url = 'https://speed.cloudflare.com/__up?cb=' + Math.random();
+        requests.push(fetch(url, { method: 'POST', body: uploadBuffer, cache: 'no-store' }).then(() => CHUNK_BYTES));
+      }
+    }
+    const sizes = await Promise.all(requests);
+    totalBytes += sizes.reduce((a, b) => a + b, 0);
+
+    const elapsed = (performance.now() - start) / 1000;
+    const mbps = (totalBytes * 8) / elapsed / 1e6;
+    speedNumber.innerHTML = mbps.toFixed(1) + '<span class="unit">Mbps</span>';
+  }
+
+  const elapsedFinal = (performance.now() - start) / 1000;
+  return (totalBytes * 8) / elapsedFinal / 1e6;
+}
+
+async function runSpeedTest() {
+  speedStartBtn.disabled = true;
+  startBtn.disabled = true;
+  speedDownEl.textContent = '–';
+  speedUpEl.textContent = '–';
+  speedNumber.style.color = 'var(--text)';
+
+  const durationMs = parseInt(speedDurationSelect.value, 10) * 1000;
+
+  try {
+    speedPhaseLabel.textContent = 'Test descendant en cours';
+    const down = await runThroughputPhase('down', durationMs);
+    speedDownEl.textContent = down.toFixed(1) + ' Mbps';
+
+    speedPhaseLabel.textContent = 'Test montant en cours';
+    const up = await runThroughputPhase('up', durationMs);
+    speedUpEl.textContent = up.toFixed(1) + ' Mbps';
+
+    speedPhaseLabel.textContent = 'Terminé';
+  } catch (e) {
+    speedPhaseLabel.textContent = 'Échec du test (connexion ou serveur indisponible)';
+  } finally {
+    speedNumber.innerHTML = '—';
+    speedNumber.style.color = 'var(--text-faint)';
+    speedStartBtn.disabled = false;
+    startBtn.disabled = false;
+  }
+}
+
+speedStartBtn.addEventListener('click', runSpeedTest);
 
 drawBars(liveCanvas, []);
 
