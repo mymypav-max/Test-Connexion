@@ -6,188 +6,239 @@
 <title>Testeur de connexion</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b0d10">
-
-<!-- iOS : rendre l'app installable et masquer les chromes de Safari -->
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Ping">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" id="themeColorMeta" content="#000000">
+
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem('theme');
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+})();
+</script>
+
 <style>
   :root {
-    --bg: #0b0d10;
-    --panel: #14171c;
-    --panel-inset: #0e1013;
-    --border: #262b33;
-    --border-soft: #1c1f26;
-    --text: #e8eaed;
-    --text-dim: #8b93a1;
-    --text-faint: #565d68;
-    --good: #34d399;
-    --warn: #fbbf24;
-    --bad: #f87171;
-    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
-  * { box-sizing: border-box; }
-  html, body {
-    background: var(--bg);
+  :root[data-theme="dark"] {
+    --bg: #000000;
+    --panel: #1c1c1e;
+    --border: rgba(255,255,255,0.09);
+    --text: #ffffff;
+    --text-dim: rgba(235,235,245,0.6);
+    --text-faint: rgba(235,235,245,0.3);
+    --segment-track: rgba(118,118,128,0.24);
+    --good: #30d158;
+    --warn: #ffd60a;
+    --bad: #ff453a;
+    --shadow: none;
   }
+  :root[data-theme="light"] {
+    --bg: #f2f2f7;
+    --panel: #ffffff;
+    --border: rgba(60,60,67,0.13);
+    --text: #000000;
+    --text-dim: rgba(60,60,67,0.6);
+    --text-faint: rgba(60,60,67,0.3);
+    --segment-track: rgba(118,118,128,0.12);
+    --good: #34c759;
+    --warn: #ff9500;
+    --bad: #ff3b30;
+    --shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); }
   body {
     font-family: var(--font-sans);
     color: var(--text);
     margin: 0;
-    padding: 24px 16px 60px;
-    background-image:
-      radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: 22px 22px;
+    padding: calc(20px + env(safe-area-inset-top)) 16px calc(48px + env(safe-area-inset-bottom));
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
-  .wrap { max-width: 760px; margin: 0 auto; }
+  .wrap { max-width: 560px; margin: 0 auto; }
 
   .top {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 4px;
-    gap: 12px;
-  }
-  h1 {
-    font-size: 21px;
-    font-weight: 600;
-    margin: 0;
-    letter-spacing: -0.01em;
-  }
-  .subtitle {
-    color: var(--text-dim);
-    font-size: 13.5px;
-    margin: 5px 0 22px;
-    max-width: 46ch;
-  }
-
-  .status-pill {
-    display: flex;
     align-items: center;
-    gap: 7px;
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    color: var(--text-dim);
-    padding: 6px 12px 6px 10px;
+    margin-bottom: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand svg { color: var(--good); flex-shrink: 0; }
+  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
     border: 1px solid var(--border);
-    border-radius: 100px;
     background: var(--panel);
-    white-space: nowrap;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text);
+    cursor: pointer;
     flex-shrink: 0;
   }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
-  .dot.running { background: var(--good); animation: pulse 1.3s ease-in-out infinite; }
-  .dot.done { background: var(--text-dim); }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
-    50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+  .icon-btn .icon-sun, .icon-btn .icon-moon { display: none; }
+  :root[data-theme="dark"] .icon-btn .icon-sun { display: block; }
+  :root[data-theme="light"] .icon-btn .icon-moon { display: block; }
+
+  .segmented {
+    display: flex;
+    background: var(--segment-track);
+    border-radius: 9px;
+    padding: 2px;
+    gap: 2px;
+    margin-bottom: 18px;
   }
+  .segment {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 7px 0;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .segment.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
 
   .panel {
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 14px;
+    border-radius: 14px;
+    padding: 4px 0;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
   }
-
-  .controls-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px 16px;
-  }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field.full { grid-column: 1 / -1; }
-  .field label {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  select, input[type=text] {
-    font-family: var(--font-mono);
-    font-size: 13.5px;
-    color: var(--text);
-    background: var(--panel-inset);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 9px 10px;
-    outline: none;
-  }
-  select:focus, input[type=text]:focus { border-color: var(--text-dim); }
-
-  .actions { display: flex; gap: 10px; margin-top: 16px; }
-  button {
-    font-family: var(--font-sans);
-    font-size: 14px;
+  .panel-inner { padding: 16px 16px 4px; }
+  .panel-title {
+    font-size: 13px;
     font-weight: 600;
-    padding: 10px 20px;
-    border-radius: 7px;
-    border: 1px solid transparent;
+    color: var(--text-dim);
+    padding: 12px 16px 4px;
+  }
+
+  .list-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row label { font-size: 15px; color: var(--text); flex-shrink: 0; }
+
+  .select-wrap { position: relative; display: flex; align-items: center; }
+  .select-wrap::after {
+    content: '';
+    position: absolute;
+    right: 2px;
+    width: 7px; height: 7px;
+    border-right: 1.5px solid var(--text-faint);
+    border-bottom: 1.5px solid var(--text-faint);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+    color: var(--text-dim);
+    background: transparent;
+    border: none;
+    padding: 4px 16px 4px 4px;
+    text-align: right;
+    direction: rtl;
+  }
+  select:focus { outline: none; color: var(--text); }
+  input[type=text] {
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    text-align: right;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+  }
+  input[type=text]::placeholder { color: var(--text-faint); }
+
+  .actions-block { padding: 16px; }
+  button.primary-btn, button.secondary-full {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 600;
+    padding: 13px 0;
+    border-radius: 12px;
+    border: none;
     cursor: pointer;
   }
-  #startBtn { background: var(--good); color: #06231a; }
-  #startBtn:hover:not(:disabled) { filter: brightness(1.08); }
-  #stopBtn { background: transparent; color: var(--bad); border-color: rgba(248,113,113,0.4); }
-  #stopBtn:hover:not(:disabled) { background: rgba(248,113,113,0.08); }
-  button:disabled { opacity: 0.35; cursor: not-allowed; }
-  .secondary-btn {
-    background: transparent;
-    color: var(--text-dim);
-    border-color: var(--border);
-  }
-  .secondary-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  button.primary-btn { background: var(--good); color: #ffffff; }
+  :root[data-theme="light"] button.primary-btn { color: #ffffff; }
+  button.primary-btn.is-stop { background: var(--bad); }
+  button.primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .readout { text-align: center; padding: 6px 0 18px; }
-  #liveNumber {
+  .readout { text-align: center; padding: 18px 16px 6px; }
+  #liveNumber, #speedNumber {
     font-family: var(--font-mono);
-    font-size: 52px;
     font-weight: 600;
     color: var(--text-faint);
     line-height: 1;
-    letter-spacing: -0.01em;
   }
-  #liveNumber .unit { font-size: 20px; color: var(--text-dim); margin-left: 4px; }
+  #liveNumber { font-size: 50px; }
+  #speedNumber { font-size: 38px; }
+  #liveNumber .unit, #speedNumber .unit { font-size: 18px; color: var(--text-dim); margin-left: 4px; }
+  .phase-label { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
 
   .scope {
-    background: var(--panel-inset);
-    border: 1px solid var(--border-soft);
-    border-radius: 8px;
+    margin: 8px 16px 0;
+    background: var(--bg);
+    border-radius: 10px;
     overflow: hidden;
   }
   canvas { width: 100%; display: block; }
-  #liveCanvas { height: 210px; }
-  #finalCanvas { height: 240px; }
+  #liveCanvas { height: 190px; }
+  #finalCanvas { height: 220px; }
 
   .legend {
     display: flex;
-    gap: 18px;
-    font-size: 12px;
+    gap: 16px;
+    font-size: 11.5px;
     color: var(--text-dim);
-    margin-top: 12px;
+    margin: 12px 16px 0;
     justify-content: center;
     flex-wrap: wrap;
   }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend .swatch { width: 9px; height: 9px; border-radius: 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .swatch { width: 8px; height: 8px; border-radius: 2px; }
 
   .stats-row {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 4px;
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border-soft);
+    padding: 16px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
   }
+  .stats-row.two-col { grid-template-columns: 1fr 1fr; }
   .stat { text-align: center; }
-  .stat .label { font-size: 11px; color: var(--text-faint); }
+  .stat .label { font-size: 10.5px; color: var(--text-faint); }
   .stat .value {
     font-family: var(--font-mono);
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     margin-top: 3px;
     color: var(--text);
@@ -197,183 +248,233 @@
   .hint {
     font-size: 12px;
     color: var(--text-faint);
-    line-height: 1.55;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-soft);
+    line-height: 1.5;
+    padding: 12px 16px 16px;
   }
 
-  h2 {
-    font-size: 15px;
+  h2.panel-heading { font-size: 15px; font-weight: 700; margin: 0; padding: 14px 16px 2px; }
+  .subtitle-inline { font-size: 12.5px; color: var(--text-dim); padding: 0 16px 12px; }
+
+  .final-actions {
+    display: flex;
+    gap: 8px;
+    padding: 4px 16px 16px;
+    flex-wrap: wrap;
+  }
+  .final-actions button {
+    flex: 1;
+    min-width: 100px;
+    font-family: var(--font-sans);
+    font-size: 13px;
     font-weight: 600;
-    margin: 0 0 16px;
-    color: var(--text);
+    padding: 10px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
   }
 
   #finalSection { display: none; }
 
-  .phase-label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-  #speedNumber {
-    font-family: var(--font-mono);
-    font-size: 38px;
-    font-weight: 600;
-    color: var(--text-faint);
-    line-height: 1;
-  }
-  #speedNumber .unit { font-size: 15px; color: var(--text-dim); margin-left: 4px; }
-  .final-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
-
-  @media (max-width: 520px) {
-    .controls-grid { grid-template-columns: 1fr; }
+  @media (max-width: 380px) {
     .stats-row { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
-    #liveNumber { font-size: 42px; }
-    .top { flex-direction: column; }
+    #liveNumber { font-size: 40px; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <div>
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12h4l2 -6 3 12 2 -8 2 4h7"/>
+      </svg>
       <h1>Testeur de connexion</h1>
-      <div class="subtitle">Latence HTTP aller-retour mesurée en direct, avec suivi des échecs et timeouts.</div>
     </div>
-    <div class="status-pill">
-      <span class="dot idle" id="statusDot"></span>
-      <span id="liveStatus">Prêt</span>
-    </div>
+    <button class="icon-btn" id="themeToggle" aria-label="Changer de thème">
+      <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+      <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
   </div>
 
-  <div class="panel">
-    <div class="controls-grid">
-      <div class="field">
+  <div class="segmented" role="tablist">
+    <button class="segment active" data-tab="ping">Ping</button>
+    <button class="segment" data-tab="speed">Débit</button>
+  </div>
+
+  <div id="pingTab">
+    <div class="panel">
+      <div class="list-row">
         <label for="targetSelect">Cible</label>
-        <select id="targetSelect">
-          <option value="https://www.google.com/generate_204">Google (rapide, mondial)</option>
-          <option value="https://1.1.1.1/cdn-cgi/trace">Cloudflare</option>
-          <option value="custom">Personnalisée…</option>
-        </select>
+        <div class="select-wrap">
+          <select id="targetSelect">
+            <option value="https://www.google.com/generate_204">Google</option>
+            <option value="https://1.1.1.1/cdn-cgi/trace">Cloudflare</option>
+            <option value="custom">Personnalisée…</option>
+          </select>
+        </div>
       </div>
-      <div class="field" id="customField" style="display:none;">
-        <label for="customUrl">URL personnalisée</label>
+      <div class="list-row" id="customField" style="display:none;">
+        <label for="customUrl">URL</label>
         <input type="text" id="customUrl" placeholder="https://exemple.com">
       </div>
-      <div class="field">
+      <div class="list-row">
         <label for="intervalSelect">Intervalle</label>
-        <select id="intervalSelect">
-          <option value="200">200 ms</option>
-          <option value="500" selected>500 ms</option>
-          <option value="1000">1 s</option>
-          <option value="2000">2 s</option>
-        </select>
+        <div class="select-wrap">
+          <select id="intervalSelect">
+            <option value="200">200 ms</option>
+            <option value="500" selected>500 ms</option>
+            <option value="1000">1 s</option>
+            <option value="2000">2 s</option>
+          </select>
+        </div>
       </div>
-      <div class="field">
+      <div class="list-row">
         <label for="durationSelect">Durée</label>
-        <select id="durationSelect">
-          <option value="30">30 s</option>
-          <option value="60" selected>60 s</option>
-          <option value="300">5 min</option>
-          <option value="600">10 min</option>
-          <option value="1800">30 min</option>
-          <option value="0">Illimitée (arrêt manuel)</option>
-        </select>
+        <div class="select-wrap">
+          <select id="durationSelect">
+            <option value="30">30 s</option>
+            <option value="60" selected>60 s</option>
+            <option value="300">5 min</option>
+            <option value="600">10 min</option>
+            <option value="1800">30 min</option>
+            <option value="0">Illimitée</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions-block">
+        <button class="primary-btn" id="pingToggleBtn">Démarrer</button>
       </div>
     </div>
-    <div class="actions">
-      <button id="startBtn">Démarrer</button>
-      <button id="stopBtn" disabled>Arrêter</button>
+
+    <div class="panel">
+      <div class="readout">
+        <span id="liveNumber">—</span>
+        <div class="phase-label" id="liveStatus">Prêt</div>
+      </div>
+      <div class="scope">
+        <canvas id="liveCanvas"></canvas>
+      </div>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--good)"></span>Bon, moins de 60 ms</span>
+        <span><span class="swatch" style="background:var(--warn)"></span>Moyen, 60 à 150 ms</span>
+        <span><span class="swatch" style="background:var(--bad)"></span>Élevé ou échec</span>
+      </div>
+      <div class="stats-row">
+        <div class="stat"><div class="label">Envoyés</div><div class="value" id="statSent">0</div></div>
+        <div class="stat fail"><div class="label">Échecs</div><div class="value" id="statFail">0</div></div>
+        <div class="stat"><div class="label">Min</div><div class="value" id="statMin">–</div></div>
+        <div class="stat"><div class="label">Moy.</div><div class="value" id="statAvg">–</div></div>
+        <div class="stat"><div class="label">Max</div><div class="value" id="statMax">–</div></div>
+        <div class="stat"><div class="label">Gigue</div><div class="value" id="statJitter">–</div></div>
+      </div>
+      <div class="hint">
+        Un navigateur ne peut pas faire un ping ICMP classique : cette mesure est un aller-retour HTTP. Un échec correspond à une absence de réponse en moins de 5 secondes.
+      </div>
+    </div>
+
+    <div class="panel" id="finalSection">
+      <h2 class="panel-heading">Relevé complet</h2>
+      <div class="scope">
+        <canvas id="finalCanvas"></canvas>
+      </div>
+      <div class="stats-row">
+        <div class="stat"><div class="label">Envoyés</div><div class="value" id="fSent">0</div></div>
+        <div class="stat fail"><div class="label">Échecs</div><div class="value" id="fFail">0</div></div>
+        <div class="stat"><div class="label">Min</div><div class="value" id="fMin">–</div></div>
+        <div class="stat"><div class="label">Moy.</div><div class="value" id="fAvg">–</div></div>
+        <div class="stat"><div class="label">Max</div><div class="value" id="fMax">–</div></div>
+        <div class="stat"><div class="label">Gigue</div><div class="value" id="fJitter">–</div></div>
+      </div>
+      <div class="final-actions">
+        <button id="downloadPngBtn">Graphique</button>
+        <button id="downloadCsvBtn">Données</button>
+        <button id="resetBtn">Nouveau test</button>
+      </div>
     </div>
   </div>
 
-  <div class="panel">
-    <div class="readout">
-      <span id="liveNumber">—</span>
-    </div>
-    <div class="scope">
-      <canvas id="liveCanvas"></canvas>
-    </div>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--good)"></span>Bon, moins de 60 ms</span>
-      <span><span class="swatch" style="background:var(--warn)"></span>Moyen, 60 à 150 ms</span>
-      <span><span class="swatch" style="background:var(--bad)"></span>Élevé ou échec</span>
-    </div>
-    <div class="stats-row">
-      <div class="stat"><div class="label">Envoyés</div><div class="value" id="statSent">0</div></div>
-      <div class="stat fail"><div class="label">Échecs</div><div class="value" id="statFail">0</div></div>
-      <div class="stat"><div class="label">Min</div><div class="value" id="statMin">–</div></div>
-      <div class="stat"><div class="label">Moy.</div><div class="value" id="statAvg">–</div></div>
-      <div class="stat"><div class="label">Max</div><div class="value" id="statMax">–</div></div>
-      <div class="stat"><div class="label">Gigue</div><div class="value" id="statJitter">–</div></div>
-    </div>
-    <div class="hint">
-      Un navigateur ne peut pas faire un ping ICMP classique : cette mesure est un aller-retour HTTP, comme la plupart des testeurs en ligne. Un échec correspond à une absence de réponse en moins de 5 secondes.
-    </div>
-  </div>
-
-  <div class="panel" id="finalSection">
-    <h2>Relevé complet</h2>
-    <div class="scope">
-      <canvas id="finalCanvas"></canvas>
-    </div>
-    <div class="stats-row">
-      <div class="stat"><div class="label">Envoyés</div><div class="value" id="fSent">0</div></div>
-      <div class="stat fail"><div class="label">Échecs</div><div class="value" id="fFail">0</div></div>
-      <div class="stat"><div class="label">Min</div><div class="value" id="fMin">–</div></div>
-      <div class="stat"><div class="label">Moy.</div><div class="value" id="fAvg">–</div></div>
-      <div class="stat"><div class="label">Max</div><div class="value" id="fMax">–</div></div>
-      <div class="stat"><div class="label">Gigue</div><div class="value" id="fJitter">–</div></div>
-    </div>
-    <div class="final-actions">
-      <button class="secondary-btn" id="downloadPngBtn">Télécharger le graphique</button>
-      <button class="secondary-btn" id="downloadCsvBtn">Télécharger les données</button>
-      <button class="secondary-btn" id="resetBtn">Nouveau test</button>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Débit réseau</h2>
-    <div class="subtitle" style="margin-bottom:18px;">Test ponctuel du débit descendant et montant, via l'infrastructure publique de Cloudflare.</div>
-    <div class="controls-grid" style="margin-bottom:16px;">
-      <div class="field">
+  <div id="speedTab" style="display:none;">
+    <div class="panel">
+      <div class="list-row">
         <label for="speedDurationSelect">Durée par sens</label>
-        <select id="speedDurationSelect">
-          <option value="5">5 s</option>
-          <option value="10" selected>10 s</option>
-          <option value="20">20 s</option>
-        </select>
+        <div class="select-wrap">
+          <select id="speedDurationSelect">
+            <option value="5">5 s</option>
+            <option value="10" selected>10 s</option>
+            <option value="20">20 s</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions-block">
+        <button class="primary-btn" id="speedStartBtn">Lancer le test de débit</button>
       </div>
     </div>
-    <div class="actions" style="margin-bottom:6px;">
-      <button id="speedStartBtn">Lancer le test de débit</button>
-    </div>
 
-    <div class="readout" style="padding-top:10px;">
-      <div class="phase-label" id="speedPhaseLabel">Prêt</div>
-      <span id="speedNumber">—</span>
-    </div>
-
-    <div class="stats-row" style="grid-template-columns: 1fr 1fr;">
-      <div class="stat"><div class="label">Débit descendant</div><div class="value" id="speedDown">–</div></div>
-      <div class="stat"><div class="label">Débit montant</div><div class="value" id="speedUp">–</div></div>
-    </div>
-    <div class="hint">
-      Contrairement au ping, ce test consomme réellement de la bande passante : il transfère des données pendant quelques secondes dans chaque sens. Il n'est pas fait pour tourner en continu.
+    <div class="panel">
+      <div class="readout">
+        <span id="speedNumber">—</span>
+        <div class="phase-label" id="speedPhaseLabel">Prêt</div>
+      </div>
+      <div class="stats-row two-col">
+        <div class="stat"><div class="label">Débit descendant</div><div class="value" id="speedDown">–</div></div>
+        <div class="stat"><div class="label">Débit montant</div><div class="value" id="speedUp">–</div></div>
+      </div>
+      <div class="hint">
+        Contrairement au ping, ce test consomme réellement de la bande passante : il transfère des données pendant quelques secondes dans chaque sens, via l'infrastructure publique de Cloudflare. Il n'est pas fait pour tourner en continu.
+      </div>
     </div>
   </div>
 </div>
 
 <script>
+// ---- Thème ----
+const root = document.documentElement;
+const themeColorMeta = document.getElementById('themeColorMeta');
+function syncThemeColorMeta() {
+  themeColorMeta.setAttribute('content', root.getAttribute('data-theme') === 'light' ? '#f2f2f7' : '#000000');
+}
+syncThemeColorMeta();
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  syncThemeColorMeta();
+  renderLive();
+  if (finalSection.style.display === 'block') renderFinal();
+});
+
+function cssVar(name) {
+  return getComputedStyle(root).getPropertyValue(name).trim();
+}
+
+// ---- Onglets ----
+document.querySelectorAll('.segment').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.segment').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('pingTab').style.display = tab === 'ping' ? 'block' : 'none';
+    document.getElementById('speedTab').style.display = tab === 'speed' ? 'block' : 'none';
+  });
+});
+
+// ---- Ping ----
 const targetSelect = document.getElementById('targetSelect');
 const customField = document.getElementById('customField');
 const customUrl = document.getElementById('customUrl');
 const intervalSelect = document.getElementById('intervalSelect');
 const durationSelect = document.getElementById('durationSelect');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
+const pingToggleBtn = document.getElementById('pingToggleBtn');
 const liveCanvas = document.getElementById('liveCanvas');
 const finalCanvas = document.getElementById('finalCanvas');
 const finalSection = document.getElementById('finalSection');
-const statusDot = document.getElementById('statusDot');
 const liveStatusEl = document.getElementById('liveStatus');
 const speedStartBtn = document.getElementById('speedStartBtn');
 const speedDurationSelect = document.getElementById('speedDurationSelect');
@@ -391,12 +492,6 @@ let running = false;
 let timerHandle = null;
 let elapsedTimer = null;
 let durationMs = 60000;
-let pingId = 0;
-
-function setStatus(state, text) {
-  statusDot.className = 'dot ' + state;
-  liveStatusEl.textContent = text;
-}
 
 function resizeCanvas(c) {
   const ratio = window.devicePixelRatio || 1;
@@ -409,10 +504,10 @@ function resizeCanvas(c) {
 }
 
 function colorFor(ms) {
-  if (ms === null) return '#f87171';
-  if (ms < 60) return '#34d399';
-  if (ms < 150) return '#fbbf24';
-  return '#f87171';
+  if (ms === null) return cssVar('--bad');
+  if (ms < 60) return cssVar('--good');
+  if (ms < 150) return cssVar('--warn');
+  return cssVar('--bad');
 }
 
 function drawBars(canvasEl, data) {
@@ -424,13 +519,15 @@ function drawBars(canvasEl, data) {
   const plotH = h - padTop - padBottom;
   const plotW = w - padLeft - padRight;
 
-  const validVals = data.map(d => d.ms).filter(v => v !== null);
+  const validVals = data.map((d) => d.ms).filter((v) => v !== null);
   let maxVal = validVals.length ? Math.max(...validVals) : 100;
   maxVal = Math.max(maxVal * 1.15, 40);
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.fillStyle = '#565d68';
-  ctx.font = '10px JetBrains Mono, monospace';
+  const gridColor = cssVar('--border');
+  const textColor = cssVar('--text-faint');
+  ctx.strokeStyle = gridColor;
+  ctx.fillStyle = textColor;
+  ctx.font = '10px ' + cssVar('--font-mono');
   ctx.textAlign = 'left';
   const steps = 4;
   for (let i = 0; i <= steps; i++) {
@@ -458,16 +555,16 @@ function drawBars(canvasEl, data) {
 
 function computeStats(data) {
   const sent = data.length;
-  const fails = data.filter(d => d.ms === null).length;
-  const valid = data.map(d => d.ms).filter(v => v !== null);
+  const fails = data.filter((d) => d.ms === null).length;
+  const valid = data.map((d) => d.ms).filter((v) => v !== null);
   const min = valid.length ? Math.min(...valid) : null;
   const max = valid.length ? Math.max(...valid) : null;
-  const avg = valid.length ? valid.reduce((a,b)=>a+b,0) / valid.length : null;
+  const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
   let jitter = null;
   if (valid.length > 1) {
     let diffs = [];
-    for (let i = 1; i < valid.length; i++) diffs.push(Math.abs(valid[i]-valid[i-1]));
-    jitter = diffs.reduce((a,b)=>a+b,0) / diffs.length;
+    for (let i = 1; i < valid.length; i++) diffs.push(Math.abs(valid[i] - valid[i - 1]));
+    jitter = diffs.reduce((a, b) => a + b, 0) / diffs.length;
   }
   return { sent, fails, min, max, avg, jitter };
 }
@@ -510,6 +607,9 @@ function renderLive() {
       numEl.innerHTML = Math.round(last.ms) + '<span class="unit">ms</span>';
       numEl.style.color = colorFor(last.ms);
     }
+  } else {
+    numEl.innerHTML = '—';
+    numEl.style.color = cssVar('--text-faint');
   }
 }
 
@@ -521,11 +621,11 @@ function downsample(data, targetLen) {
     const start = Math.floor(i * bucketSize);
     const end = Math.floor((i + 1) * bucketSize);
     const bucket = data.slice(start, end);
-    const anyFail = bucket.some(b => b.ms === null);
+    const anyFail = bucket.some((b) => b.ms === null);
     if (anyFail) {
       out.push({ ms: null });
     } else {
-      const maxInBucket = Math.max(...bucket.map(b => b.ms));
+      const maxInBucket = Math.max(...bucket.map((b) => b.ms));
       out.push({ ms: maxInBucket });
     }
   }
@@ -561,23 +661,26 @@ function pingOnce() {
     });
 }
 
+function setControlsDisabled(disabled) {
+  targetSelect.disabled = disabled;
+  customUrl.disabled = disabled;
+  intervalSelect.disabled = disabled;
+  durationSelect.disabled = disabled;
+  speedStartBtn.disabled = disabled;
+}
+
 function startTest() {
   results = [];
   finalSection.style.display = 'none';
   running = true;
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-  targetSelect.disabled = true;
-  customUrl.disabled = true;
-  intervalSelect.disabled = true;
-  durationSelect.disabled = true;
-  speedStartBtn.disabled = true;
+  setControlsDisabled(true);
+  pingToggleBtn.textContent = 'Arrêter';
+  pingToggleBtn.classList.add('is-stop');
+  liveStatusEl.textContent = 'Test en cours';
 
   const interval = parseInt(intervalSelect.value, 10);
   const durSec = parseInt(durationSelect.value, 10);
   durationMs = durSec * 1000;
-
-  setStatus('running', 'Test en cours');
 
   pingOnce();
   timerHandle = setInterval(pingOnce, interval);
@@ -591,41 +694,37 @@ function stopTest() {
   running = false;
   clearInterval(timerHandle);
   clearTimeout(elapsedTimer);
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-  targetSelect.disabled = false;
-  customUrl.disabled = false;
-  intervalSelect.disabled = false;
-  durationSelect.disabled = false;
-  speedStartBtn.disabled = false;
-  setStatus('done', 'Terminé');
+  setControlsDisabled(false);
+  pingToggleBtn.textContent = 'Démarrer';
+  pingToggleBtn.classList.remove('is-stop');
+  liveStatusEl.textContent = 'Terminé';
   renderFinal();
 }
 
-function resetTest() {
+pingToggleBtn.addEventListener('click', () => {
+  if (running) stopTest(); else startTest();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
   results = [];
   finalSection.style.display = 'none';
-  document.getElementById('liveNumber').innerHTML = '—';
-  document.getElementById('liveNumber').style.color = 'var(--text-faint)';
-  setStatus('idle', 'Prêt');
+  liveStatusEl.textContent = 'Prêt';
   drawBars(liveCanvas, []);
   updateLiveStats();
-}
-
-startBtn.addEventListener('click', startTest);
-stopBtn.addEventListener('click', stopTest);
-document.getElementById('resetBtn').addEventListener('click', resetTest);
+  document.getElementById('liveNumber').innerHTML = '—';
+  document.getElementById('liveNumber').style.color = cssVar('--text-faint');
+});
 
 document.getElementById('downloadPngBtn').addEventListener('click', () => {
   const link = document.createElement('a');
-  link.download = 'test-connexion-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.png';
+  link.download = 'test-connexion-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
   link.href = finalCanvas.toDataURL('image/png');
   link.click();
 });
 
 document.getElementById('downloadCsvBtn').addEventListener('click', () => {
   let csv = 'date,heure,latence_ms,echec\n';
-  results.forEach(r => {
+  results.forEach((r) => {
     const d = new Date(r.t);
     const iso = d.toISOString();
     const date = iso.slice(0, 10);
@@ -634,7 +733,7 @@ document.getElementById('downloadCsvBtn').addEventListener('click', () => {
   });
   const blob = new Blob([csv], { type: 'text/csv' });
   const link = document.createElement('a');
-  link.download = 'test-connexion-donnees-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+  link.download = 'test-connexion-donnees-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
   link.href = URL.createObjectURL(blob);
   link.click();
 });
@@ -644,6 +743,9 @@ window.addEventListener('resize', () => {
   if (finalSection.style.display === 'block') renderFinal();
 });
 
+drawBars(liveCanvas, []);
+
+// ---- Débit ----
 function randomBuffer(size) {
   const buf = new Uint8Array(size);
   const CHUNK = 65536;
@@ -653,7 +755,7 @@ function randomBuffer(size) {
   return buf;
 }
 
-async function runThroughputPhase(direction, durationMs) {
+async function runThroughputPhase(direction, ms) {
   const PARALLEL = 4;
   const CHUNK_BYTES = direction === 'down' ? 4000000 : 1000000;
   const uploadBuffer = direction === 'up' ? randomBuffer(CHUNK_BYTES) : null;
@@ -661,12 +763,12 @@ async function runThroughputPhase(direction, durationMs) {
   let totalBytes = 0;
   const start = performance.now();
 
-  while (performance.now() - start < durationMs) {
+  while (performance.now() - start < ms) {
     const requests = [];
     for (let i = 0; i < PARALLEL; i++) {
       if (direction === 'down') {
         const url = 'https://speed.cloudflare.com/__down?bytes=' + CHUNK_BYTES + '&cb=' + Math.random();
-        requests.push(fetch(url, { cache: 'no-store' }).then(r => r.blob()).then(b => b.size));
+        requests.push(fetch(url, { cache: 'no-store' }).then((r) => r.blob()).then((b) => b.size));
       } else {
         const url = 'https://speed.cloudflare.com/__up?cb=' + Math.random();
         requests.push(fetch(url, { method: 'POST', body: uploadBuffer, cache: 'no-store' }).then(() => CHUNK_BYTES));
@@ -686,20 +788,20 @@ async function runThroughputPhase(direction, durationMs) {
 
 async function runSpeedTest() {
   speedStartBtn.disabled = true;
-  startBtn.disabled = true;
+  pingToggleBtn.disabled = true;
   speedDownEl.textContent = '–';
   speedUpEl.textContent = '–';
-  speedNumber.style.color = 'var(--text)';
+  speedNumber.style.color = cssVar('--text');
 
-  const durationMs = parseInt(speedDurationSelect.value, 10) * 1000;
+  const durationMs2 = parseInt(speedDurationSelect.value, 10) * 1000;
 
   try {
     speedPhaseLabel.textContent = 'Test descendant en cours';
-    const down = await runThroughputPhase('down', durationMs);
+    const down = await runThroughputPhase('down', durationMs2);
     speedDownEl.textContent = down.toFixed(1) + ' Mbps';
 
     speedPhaseLabel.textContent = 'Test montant en cours';
-    const up = await runThroughputPhase('up', durationMs);
+    const up = await runThroughputPhase('up', durationMs2);
     speedUpEl.textContent = up.toFixed(1) + ' Mbps';
 
     speedPhaseLabel.textContent = 'Terminé';
@@ -707,21 +809,17 @@ async function runSpeedTest() {
     speedPhaseLabel.textContent = 'Échec du test (connexion ou serveur indisponible)';
   } finally {
     speedNumber.innerHTML = '—';
-    speedNumber.style.color = 'var(--text-faint)';
+    speedNumber.style.color = cssVar('--text-faint');
     speedStartBtn.disabled = false;
-    startBtn.disabled = false;
+    pingToggleBtn.disabled = false;
   }
 }
 
 speedStartBtn.addEventListener('click', runSpeedTest);
 
-drawBars(liveCanvas, []);
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {
-      // Échec silencieux : l'app reste utilisable normalement, juste sans mode hors-ligne
-    });
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
   });
 }
 </script>
