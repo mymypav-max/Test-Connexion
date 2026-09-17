@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Testeur de connexion</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0d10">
+
+<!-- iOS : rendre l'app installable et masquer les chromes de Safari -->
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ping">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --panel-inset: #0e1013;
+    --border: #262b33;
+    --border-soft: #1c1f26;
+    --text: #e8eaed;
+    --text-dim: #8b93a1;
+    --text-faint: #565d68;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    background: var(--bg);
+  }
+  body {
+    font-family: var(--font-sans);
+    color: var(--text);
+    margin: 0;
+    padding: 24px 16px 60px;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 21px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 13.5px;
+    margin: 5px 0 22px;
+    max-width: 46ch;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    padding: 6px 12px 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    background: var(--panel);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .dot.running { background: var(--good); animation: pulse 1.3s ease-in-out infinite; }
+  .dot.done { background: var(--text-dim); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
+    50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 14px;
+  }
+
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  select, input[type=text] {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--panel-inset);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 10px;
+    outline: none;
+  }
+  select:focus, input[type=text]:focus { border-color: var(--text-dim); }
+
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+  button {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  #startBtn { background: var(--good); color: #06231a; }
+  #startBtn:hover:not(:disabled) { filter: brightness(1.08); }
+  #stopBtn { background: transparent; color: var(--bad); border-color: rgba(248,113,113,0.4); }
+  #stopBtn:hover:not(:disabled) { background: rgba(248,113,113,0.08); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .secondary-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border-color: var(--border);
+  }
+  .secondary-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
+  .readout { text-align: center; padding: 6px 0 18px; }
+  #liveNumber {
+    font-family: var(--font-mono);
+    font-size: 52px;
+    font-weight: 600;
+    color: var(--text-faint);
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  #liveNumber .unit { font-size: 20px; color: var(--text-dim); margin-left: 4px; }
+
+  .scope {
+    background: var(--panel-inset);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  canvas { width: 100%; display: block; }
+  #liveCanvas { height: 210px; }
+  #finalCanvas { height: 240px; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+  }
+  .stat { text-align: center; }
+  .stat .label { font-size: 11px; color: var(--text-faint); }
+  .stat .value {
+    font-family: var(--font-mono);
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 3px;
+    color: var(--text);
+  }
+  .stat.fail .value { color: var(--bad); }
+
+  .hint {
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.55;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    color: var(--text);
+  }
+
+  #finalSection { display: none; }
+  .final-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+  @media (max-width: 520px) {
+    .controls-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+    #liveNumber { font-size: 42px; }
+    .top { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Testeur de connexion</h1>
+      <div class="subtitle">Latence HTTP aller-retour mesurée en direct, avec suivi des échecs et timeouts.</div>
+    </div>
+    <div class="status-pill">
+      <span class="dot idle" id="statusDot"></span>
+      <span id="liveStatus">Prêt</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="controls-grid">
+      <div class="field">
+        <label for="targetSelect">Cible</label>
+        <select id="targetSelect">
+          <option value="https://www.google.com/generate_204">Google (rapide, mondial)</option>
+          <option value="https://1.1.1.1/cdn-cgi/trace">Cloudflare</option>
+          <option value="custom">Personnalisée…</option>
+        </select>
+      </div>
+      <div class="field" id="customField" style="display:none;">
+        <label for="customUrl">URL personnalisée</label>
+        <input type="text" id="customUrl" placeholder="https://exemple.com">
+      </div>
+      <div class="field">
+        <label for="intervalSelect">Intervalle</label>
+        <select id="intervalSelect">
+          <option value="200">200 ms</option>
+          <option value="500" selected>500 ms</option>
+          <option value="1000">1 s</option>
+          <option value="2000">2 s</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="durationSelect">Durée</label>
+        <select id="durationSelect">
+          <option value="30">30 s</option>
+          <option value="60" selected>60 s</option>
+          <option value="300">5 min</option>
+          <option value="600">10 min</option>
+          <option value="1800">30 min</option>
+          <option value="0">Illimitée (arrêt manuel)</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="startBtn">Démarrer</button>
+      <button id="stopBtn" disabled>Arrêter</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="readout">
+      <span id="liveNumber">—</span>
+    </div>
+    <div class="scope">
+      <canvas id="liveCanvas"></canvas>
+    </div>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--good)"></span>Bon, moins de 60 ms</span>
+      <span><span class="swatch" style="background:var(--warn)"></span>Moyen, 60 à 150 ms</span>
+      <span><span class="swatch" style="background:var(--bad)"></span>Élevé ou échec</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Envoyés</div><div class="value" id="statSent">0</div></div>
+      <div class="stat fail"><div class="label">Échecs</div><div class="value" id="statFail">0</div></div>
+      <div class="stat"><div class="label">Min</div><div class="value" id="statMin">–</div></div>
+      <div class="stat"><div class="label">Moy.</div><div class="value" id="statAvg">–</div></div>
+      <div class="stat"><div class="label">Max</div><div class="value" id="statMax">–</div></div>
+      <div class="stat"><div class="label">Gigue</div><div class="value" id="statJitter">–</div></div>
+    </div>
+    <div class="hint">
+      Un navigateur ne peut pas faire un ping ICMP classique : cette mesure est un aller-retour HTTP, comme la plupart des testeurs en ligne. Un échec correspond à une absence de réponse en moins de 5 secondes.
+    </div>
+  </div>
+
+  <div class="panel" id="finalSection">
+    <h2>Relevé complet</h2>
+    <div class="scope">
+      <canvas id="finalCanvas"></canvas>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Envoyés</div><div class="value" id="fSent">0</div></div>
+      <div class="stat fail"><div class="label">Échecs</div><div class="value" id="fFail">0</div></div>
+      <div class="stat"><div class="label">Min</div><div class="value" id="fMin">–</div></div>
+      <div class="stat"><div class="label">Moy.</div><div class="value" id="fAvg">–</div></div>
+      <div class="stat"><div class="label">Max</div><div class="value" id="fMax">–</div></div>
+      <div class="stat"><div class="label">Gigue</div><div class="value" id="fJitter">–</div></div>
+    </div>
+    <div class="final-actions">
+      <button class="secondary-btn" id="downloadPngBtn">Télécharger le graphique</button>
+      <button class="secondary-btn" id="downloadCsvBtn">Télécharger les données</button>
+      <button class="secondary-btn" id="resetBtn">Nouveau test</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const targetSelect = document.getElementById('targetSelect');
+const customField = document.getElementById('customField');
+const customUrl = document.getElementById('customUrl');
+const intervalSelect = document.getElementById('intervalSelect');
+const durationSelect = document.getElementById('durationSelect');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const liveCanvas = document.getElementById('liveCanvas');
+const finalCanvas = document.getElementById('finalCanvas');
+const finalSection = document.getElementById('finalSection');
+const statusDot = document.getElementById('statusDot');
+const liveStatusEl = document.getElementById('liveStatus');
+
+targetSelect.addEventListener('change', () => {
+  customField.style.display = targetSelect.value === 'custom' ? 'flex' : 'none';
+});
+
+let results = [];
+let running = false;
+let timerHandle = null;
+let elapsedTimer = null;
+let durationMs = 60000;
+let pingId = 0;
+
+function setStatus(state, text) {
+  statusDot.className = 'dot ' + state;
+  liveStatusEl.textContent = text;
+}
+
+function resizeCanvas(c) {
+  const ratio = window.devicePixelRatio || 1;
+  const rect = c.getBoundingClientRect();
+  c.width = rect.width * ratio;
+  c.height = rect.height * ratio;
+  const ctx = c.getContext('2d');
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function colorFor(ms) {
+  if (ms === null) return '#f87171';
+  if (ms < 60) return '#34d399';
+  if (ms < 150) return '#fbbf24';
+  return '#f87171';
+}
+
+function drawBars(canvasEl, data) {
+  const { ctx, w, h } = resizeCanvas(canvasEl);
+  ctx.clearRect(0, 0, w, h);
+  if (data.length === 0) return;
+
+  const padTop = 16, padBottom = 16, padLeft = 4, padRight = 4;
+  const plotH = h - padTop - padBottom;
+  const plotW = w - padLeft - padRight;
+
+  const validVals = data.map(d => d.ms).filter(v => v !== null);
+  let maxVal = validVals.length ? Math.max(...validVals) : 100;
+  maxVal = Math.max(maxVal * 1.15, 40);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillStyle = '#565d68';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'left';
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const val = Math.round((maxVal / steps) * i);
+    const y = padTop + plotH - (val / maxVal) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y);
+    ctx.lineTo(w - padRight, y);
+    ctx.stroke();
+    ctx.fillText(val + 'ms', 3, y - 3);
+  }
+
+  const barGap = 2;
+  const barW = Math.max(1, plotW / data.length - barGap);
+
+  data.forEach((d, i) => {
+    const x = padLeft + i * (barW + barGap);
+    const val = d.ms === null ? maxVal : d.ms;
+    const barH = Math.max(2, (val / maxVal) * plotH);
+    const y = padTop + plotH - barH;
+    ctx.fillStyle = colorFor(d.ms);
+    ctx.fillRect(x, y, barW, barH);
+  });
+}
+
+function computeStats(data) {
+  const sent = data.length;
+  const fails = data.filter(d => d.ms === null).length;
+  const valid = data.map(d => d.ms).filter(v => v !== null);
+  const min = valid.length ? Math.min(...valid) : null;
+  const max = valid.length ? Math.max(...valid) : null;
+  const avg = valid.length ? valid.reduce((a,b)=>a+b,0) / valid.length : null;
+  let jitter = null;
+  if (valid.length > 1) {
+    let diffs = [];
+    for (let i = 1; i < valid.length; i++) diffs.push(Math.abs(valid[i]-valid[i-1]));
+    jitter = diffs.reduce((a,b)=>a+b,0) / diffs.length;
+  }
+  return { sent, fails, min, max, avg, jitter };
+}
+
+function fmt(v) { return v === null || v === undefined ? '–' : Math.round(v) + ' ms'; }
+
+function updateLiveStats() {
+  const s = computeStats(results);
+  document.getElementById('statSent').textContent = s.sent;
+  document.getElementById('statFail').textContent = s.fails;
+  document.getElementById('statMin').textContent = fmt(s.min);
+  document.getElementById('statAvg').textContent = fmt(s.avg);
+  document.getElementById('statMax').textContent = fmt(s.max);
+  document.getElementById('statJitter').textContent = fmt(s.jitter);
+}
+
+function updateFinalStats() {
+  const s = computeStats(results);
+  document.getElementById('fSent').textContent = s.sent;
+  document.getElementById('fFail').textContent = s.fails;
+  document.getElementById('fMin').textContent = fmt(s.min);
+  document.getElementById('fAvg').textContent = fmt(s.avg);
+  document.getElementById('fMax').textContent = fmt(s.max);
+  document.getElementById('fJitter').textContent = fmt(s.jitter);
+}
+
+const LIVE_WINDOW = 90;
+
+function renderLive() {
+  const windowData = results.slice(-LIVE_WINDOW);
+  drawBars(liveCanvas, windowData);
+  updateLiveStats();
+  const last = results[results.length - 1];
+  const numEl = document.getElementById('liveNumber');
+  if (last) {
+    if (last.ms === null) {
+      numEl.innerHTML = 'X';
+      numEl.style.color = colorFor(null);
+    } else {
+      numEl.innerHTML = Math.round(last.ms) + '<span class="unit">ms</span>';
+      numEl.style.color = colorFor(last.ms);
+    }
+  }
+}
+
+function downsample(data, targetLen) {
+  if (data.length <= targetLen) return data;
+  const bucketSize = data.length / targetLen;
+  const out = [];
+  for (let i = 0; i < targetLen; i++) {
+    const start = Math.floor(i * bucketSize);
+    const end = Math.floor((i + 1) * bucketSize);
+    const bucket = data.slice(start, end);
+    const anyFail = bucket.some(b => b.ms === null);
+    if (anyFail) {
+      out.push({ ms: null });
+    } else {
+      const maxInBucket = Math.max(...bucket.map(b => b.ms));
+      out.push({ ms: maxInBucket });
+    }
+  }
+  return out;
+}
+
+function renderFinal() {
+  finalSection.style.display = 'block';
+  const data = downsample(results, 400);
+  drawBars(finalCanvas, data);
+  updateFinalStats();
+}
+
+function pingOnce() {
+  const target = targetSelect.value === 'custom' ? customUrl.value.trim() : targetSelect.value;
+  if (!target) return;
+  const url = target + (target.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+  const t0 = performance.now();
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), 5000);
+
+  fetch(url, { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
+    .then(() => {
+      clearTimeout(to);
+      const dt = performance.now() - t0;
+      results.push({ t: Date.now(), ms: dt });
+      renderLive();
+    })
+    .catch(() => {
+      clearTimeout(to);
+      results.push({ t: Date.now(), ms: null });
+      renderLive();
+    });
+}
+
+function startTest() {
+  results = [];
+  finalSection.style.display = 'none';
+  running = true;
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  targetSelect.disabled = true;
+  customUrl.disabled = true;
+  intervalSelect.disabled = true;
+  durationSelect.disabled = true;
+
+  const interval = parseInt(intervalSelect.value, 10);
+  const durSec = parseInt(durationSelect.value, 10);
+  durationMs = durSec * 1000;
+
+  setStatus('running', 'Test en cours');
+
+  pingOnce();
+  timerHandle = setInterval(pingOnce, interval);
+
+  if (durationMs > 0) {
+    elapsedTimer = setTimeout(stopTest, durationMs);
+  }
+}
+
+function stopTest() {
+  running = false;
+  clearInterval(timerHandle);
+  clearTimeout(elapsedTimer);
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  targetSelect.disabled = false;
+  customUrl.disabled = false;
+  intervalSelect.disabled = false;
+  durationSelect.disabled = false;
+  setStatus('done', 'Terminé');
+  renderFinal();
+}
+
+function resetTest() {
+  results = [];
+  finalSection.style.display = 'none';
+  document.getElementById('liveNumber').innerHTML = '—';
+  document.getElementById('liveNumber').style.color = 'var(--text-faint)';
+  setStatus('idle', 'Prêt');
+  drawBars(liveCanvas, []);
+  updateLiveStats();
+}
+
+startBtn.addEventListener('click', startTest);
+stopBtn.addEventListener('click', stopTest);
+document.getElementById('resetBtn').addEventListener('click', resetTest);
+
+document.getElementById('downloadPngBtn').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'test-connexion-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.png';
+  link.href = finalCanvas.toDataURL('image/png');
+  link.click();
+});
+
+document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+  let csv = 'date,heure,latence_ms,echec\n';
+  results.forEach(r => {
+    const d = new Date(r.t);
+    const iso = d.toISOString();
+    const date = iso.slice(0, 10);
+    const heure = iso.slice(11, 23);
+    csv += date + ',' + heure + ',' + (r.ms === null ? '' : r.ms.toFixed(1)) + ',' + (r.ms === null ? '1' : '0') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const link = document.createElement('a');
+  link.download = 'test-connexion-donnees-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+});
+
+window.addEventListener('resize', () => {
+  renderLive();
+  if (finalSection.style.display === 'block') renderFinal();
+});
+
+drawBars(liveCanvas, []);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {
+      // Échec silencieux : l'app reste utilisable normalement, juste sans mode hors-ligne
+    });
+  });
+}
+</script>
+</body>
+</html>
