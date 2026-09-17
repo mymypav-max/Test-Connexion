@@ -28,6 +28,16 @@
   :root {
     --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --chart-accent: #0A84FF;
+    --down-1: #64D2FF;
+    --down-2: #0A84FF;
+    --up-1: #BF5AF2;
+    --up-2: #FF375F;
+  }
+  @property --ring-progress {
+    syntax: '<number>';
+    inherits: false;
+    initial-value: 0;
   }
   :root[data-theme="dark"] {
     --bg: #000000;
@@ -193,16 +203,27 @@
   button.primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .readout { text-align: center; padding: 18px 16px 6px; }
+  .ping-badge {
+    width: 158px;
+    height: 158px;
+    border-radius: 50%;
+    border: 3px solid var(--text-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+  }
   #liveNumber, #speedNumber {
     font-family: var(--font-mono);
     font-weight: 600;
     color: var(--text-faint);
     line-height: 1;
   }
-  #liveNumber { font-size: 50px; }
-  #speedNumber { font-size: 38px; }
-  #liveNumber .unit, #speedNumber .unit { font-size: 18px; color: var(--text-dim); margin-left: 4px; }
-  .phase-label { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+  #liveNumber { font-size: 38px; }
+  #speedNumber { font-size: 34px; }
+  #liveNumber .unit, #speedNumber .unit { display: block; font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+  .phase-label { font-size: 13px; color: var(--text-dim); margin-top: 10px; }
 
   .scope {
     margin: 8px 16px 0;
@@ -276,6 +297,78 @@
   }
 
   #finalSection { display: none; }
+
+  .rings-wrap {
+    position: relative;
+    width: 216px;
+    height: 216px;
+    margin: 6px auto 4px;
+  }
+  .ring {
+    --ring-progress: 0;
+    position: absolute;
+    border-radius: 50%;
+    transition: --ring-progress 0.9s cubic-bezier(.22,1,.36,1);
+  }
+  .ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.4) 10deg, transparent 24deg 360deg);
+    -webkit-mask: inherit;
+    mask: inherit;
+    opacity: 0;
+    animation: ring-shine 2.4s linear infinite;
+  }
+  .ring.active::after { opacity: 1; }
+  .ring.just-completed { animation: ring-pop 0.5s ease; }
+  @keyframes ring-shine { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes ring-pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.045); }
+    100% { transform: scale(1); }
+  }
+  .ring-down {
+    inset: 0;
+    filter: drop-shadow(0 0 7px rgba(10,132,255,0.45));
+    background: conic-gradient(from -90deg,
+      var(--down-1) 0deg,
+      var(--down-2) calc(var(--ring-progress) * 3.6deg),
+      transparent calc(var(--ring-progress) * 3.6deg) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px));
+  }
+  .ring-up {
+    inset: 32px;
+    filter: drop-shadow(0 0 7px rgba(191,90,242,0.45));
+    background: conic-gradient(from -90deg,
+      var(--up-1) 0deg,
+      var(--up-2) calc(var(--ring-progress) * 3.6deg),
+      transparent calc(var(--ring-progress) * 3.6deg) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 16px));
+  }
+  .rings-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .rings-legend {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    padding: 4px 16px 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .rings-legend b { color: var(--text); font-family: var(--font-mono); font-weight: 600; }
+  .rings-legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-down { background: linear-gradient(135deg, var(--down-1), var(--down-2)); }
+  .dot-up { background: linear-gradient(135deg, var(--up-1), var(--up-2)); }
 
   @media (max-width: 380px) {
     .stats-row { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
@@ -355,7 +448,9 @@
 
     <div class="panel">
       <div class="readout">
-        <span id="liveNumber">—</span>
+        <div class="ping-badge" id="pingBadge">
+          <span id="liveNumber">—</span>
+        </div>
         <div class="phase-label" id="liveStatus">Prêt</div>
       </div>
       <div class="scope">
@@ -418,13 +513,17 @@
     </div>
 
     <div class="panel">
-      <div class="readout">
-        <span id="speedNumber">—</span>
-        <div class="phase-label" id="speedPhaseLabel">Prêt</div>
+      <div class="rings-wrap" id="ringsWrap">
+        <div class="ring ring-down" id="ringDown"></div>
+        <div class="ring ring-up" id="ringUp"></div>
+        <div class="rings-center">
+          <span id="speedNumber">—</span>
+          <div class="phase-label" id="speedPhaseLabel">Prêt</div>
+        </div>
       </div>
-      <div class="stats-row two-col">
-        <div class="stat"><div class="label">Débit descendant</div><div class="value" id="speedDown">–</div></div>
-        <div class="stat"><div class="label">Débit montant</div><div class="value" id="speedUp">–</div></div>
+      <div class="rings-legend">
+        <span><i class="dot dot-down"></i>Descendant <b id="speedDown">–</b></span>
+        <span><i class="dot dot-up"></i>Montant <b id="speedUp">–</b></span>
       </div>
       <div class="hint">
         Contrairement au ping, ce test consomme réellement de la bande passante : il transfère des données pendant quelques secondes dans chaque sens, via l'infrastructure publique de Cloudflare. Il n'est pas fait pour tourner en continu.
@@ -540,17 +639,101 @@ function drawBars(canvasEl, data) {
     ctx.fillText(val + 'ms', 3, y - 3);
   }
 
-  const barGap = 2;
-  const barW = Math.max(1, plotW / data.length - barGap);
+  const baseline = padTop + plotH;
+  const stepX = data.length > 1 ? plotW / (data.length - 1) : plotW;
+  const px = (i) => padLeft + i * stepX;
+  const py = (ms) => padTop + plotH - (Math.min(ms, maxVal) / maxVal) * plotH;
 
+  // Parcourt les segments de points valides consécutifs (les échecs coupent la courbe)
+  let segStart = null;
+  for (let i = 0; i <= data.length; i++) {
+    const isValid = i < data.length && data[i].ms !== null;
+    if (isValid && segStart === null) segStart = i;
+    if ((!isValid || i === data.length) && segStart !== null) {
+      drawSmoothSegment(ctx, data, segStart, i - 1, px, py, baseline);
+      segStart = null;
+    }
+  }
+
+  // Marqueurs : points au-delà du seuil "moyen", et échecs
   data.forEach((d, i) => {
-    const x = padLeft + i * (barW + barGap);
-    const val = d.ms === null ? maxVal : d.ms;
-    const barH = Math.max(2, (val / maxVal) * plotH);
-    const y = padTop + plotH - barH;
-    ctx.fillStyle = colorFor(d.ms);
-    ctx.fillRect(x, y, barW, barH);
+    if (d.ms === null) {
+      ctx.fillStyle = cssVar('--bad');
+      ctx.beginPath();
+      ctx.arc(px(i), padTop + 5, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.ms >= 60) {
+      ctx.fillStyle = colorFor(d.ms);
+      ctx.beginPath();
+      ctx.arc(px(i), py(d.ms), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   });
+}
+
+function drawSmoothSegment(ctx, data, start, end, px, py, baseline) {
+  if (end < start) return;
+
+  if (end === start) {
+    ctx.fillStyle = colorFor(data[start].ms);
+    ctx.beginPath();
+    ctx.arc(px(start), py(data[start].ms), 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  const pts = [];
+  for (let i = start; i <= end; i++) pts.push({ x: px(i), y: py(data[i].ms) });
+
+  // Aire sous la courbe, en un seul remplissage doux
+  const accent = cssVar('--chart-accent');
+  const grad = ctx.createLinearGradient(0, pts[0].y, 0, baseline);
+  grad.addColorStop(0, hexToRgba(accent, 0.28));
+  grad.addColorStop(1, hexToRgba(accent, 0));
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, baseline);
+  ctx.lineTo(pts[0].x, pts[0].y);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2;
+    const my = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  ctx.lineTo(pts[pts.length - 1].x, baseline);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Ligne, colorée par tronçon selon la qualité du point d'arrivée
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  let prevX = pts[0].x, prevY = pts[0].y;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2;
+    const my = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.strokeStyle = colorFor(data[start + i + 1].ms);
+    ctx.beginPath();
+    ctx.moveTo(prevX, prevY);
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    ctx.stroke();
+    prevX = mx; prevY = my;
+  }
+}
+
+function hexToRgba(hex, alpha) {
+  hex = hex.trim();
+  if (hex.startsWith('rgb')) {
+    return hex.replace(/rgba?\(([^)]+)\)/, (m, inner) => {
+      const parts = inner.split(',').map((s) => s.trim());
+      return 'rgba(' + parts[0] + ',' + parts[1] + ',' + parts[2] + ',' + alpha + ')';
+    });
+  }
+  const h = hex.replace('#', '');
+  const bigint = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+  const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
 }
 
 function computeStats(data) {
@@ -599,17 +782,23 @@ function renderLive() {
   updateLiveStats();
   const last = results[results.length - 1];
   const numEl = document.getElementById('liveNumber');
+  const badge = document.getElementById('pingBadge');
   if (last) {
+    const c = colorFor(last.ms);
+    badge.style.borderColor = c;
+    badge.style.boxShadow = '0 0 18px ' + hexToRgba(c, 0.35);
     if (last.ms === null) {
       numEl.innerHTML = 'X';
-      numEl.style.color = colorFor(null);
+      numEl.style.color = c;
     } else {
       numEl.innerHTML = Math.round(last.ms) + '<span class="unit">ms</span>';
-      numEl.style.color = colorFor(last.ms);
+      numEl.style.color = c;
     }
   } else {
     numEl.innerHTML = '—';
     numEl.style.color = cssVar('--text-faint');
+    badge.style.borderColor = cssVar('--text-faint');
+    badge.style.boxShadow = 'none';
   }
 }
 
@@ -713,6 +902,9 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   updateLiveStats();
   document.getElementById('liveNumber').innerHTML = '—';
   document.getElementById('liveNumber').style.color = cssVar('--text-faint');
+  const badge = document.getElementById('pingBadge');
+  badge.style.borderColor = cssVar('--text-faint');
+  badge.style.boxShadow = 'none';
 });
 
 document.getElementById('downloadPngBtn').addEventListener('click', () => {
@@ -746,6 +938,13 @@ window.addEventListener('resize', () => {
 drawBars(liveCanvas, []);
 
 // ---- Débit ----
+const ringDown = document.getElementById('ringDown');
+const ringUp = document.getElementById('ringUp');
+
+function setRingProgress(el, pct) {
+  el.style.setProperty('--ring-progress', Math.max(0, Math.min(100, pct)));
+}
+
 function randomBuffer(size) {
   const buf = new Uint8Array(size);
   const CHUNK = 65536;
@@ -755,13 +954,16 @@ function randomBuffer(size) {
   return buf;
 }
 
-async function runThroughputPhase(direction, ms) {
+async function runThroughputPhase(direction, ms, ringEl) {
   const PARALLEL = 4;
   const CHUNK_BYTES = direction === 'down' ? 4000000 : 1000000;
   const uploadBuffer = direction === 'up' ? randomBuffer(CHUNK_BYTES) : null;
 
   let totalBytes = 0;
   const start = performance.now();
+  const soft = { ceiling: 50 }; // plafond adaptatif pour une montée en charge visuelle organique
+
+  ringEl.classList.add('active');
 
   while (performance.now() - start < ms) {
     const requests = [];
@@ -780,7 +982,12 @@ async function runThroughputPhase(direction, ms) {
     const elapsed = (performance.now() - start) / 1000;
     const mbps = (totalBytes * 8) / elapsed / 1e6;
     speedNumber.innerHTML = mbps.toFixed(1) + '<span class="unit">Mbps</span>';
+
+    if (mbps > soft.ceiling * 0.8) soft.ceiling = mbps / 0.8;
+    setRingProgress(ringEl, Math.min((mbps / soft.ceiling) * 100, 95));
   }
+
+  ringEl.classList.remove('active');
 
   const elapsedFinal = (performance.now() - start) / 1000;
   return (totalBytes * 8) / elapsedFinal / 1e6;
@@ -792,17 +999,30 @@ async function runSpeedTest() {
   speedDownEl.textContent = '–';
   speedUpEl.textContent = '–';
   speedNumber.style.color = cssVar('--text');
+  setRingProgress(ringDown, 0);
+  setRingProgress(ringUp, 0);
 
   const durationMs2 = parseInt(speedDurationSelect.value, 10) * 1000;
 
   try {
     speedPhaseLabel.textContent = 'Test descendant en cours';
-    const down = await runThroughputPhase('down', durationMs2);
+    const down = await runThroughputPhase('down', durationMs2, ringDown);
     speedDownEl.textContent = down.toFixed(1) + ' Mbps';
 
     speedPhaseLabel.textContent = 'Test montant en cours';
-    const up = await runThroughputPhase('up', durationMs2);
+    const up = await runThroughputPhase('up', durationMs2, ringUp);
     speedUpEl.textContent = up.toFixed(1) + ' Mbps';
+
+    // Bilan final : les deux anneaux se réajustent l'un par rapport à l'autre
+    const trueMax = Math.max(down, up, 0.1);
+    setRingProgress(ringDown, (down / trueMax) * 100);
+    setRingProgress(ringUp, (up / trueMax) * 100);
+    ringDown.classList.add('just-completed');
+    ringUp.classList.add('just-completed');
+    setTimeout(() => {
+      ringDown.classList.remove('just-completed');
+      ringUp.classList.remove('just-completed');
+    }, 500);
 
     speedPhaseLabel.textContent = 'Terminé';
   } catch (e) {
