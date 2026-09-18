@@ -298,6 +298,35 @@
 
   #finalSection { display: none; }
 
+  .banner {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .banner-warn { background: rgba(255,69,58,0.14); color: var(--bad); }
+
+  .history-row {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .history-main { min-width: 0; }
+  .history-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .history-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .history-value { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); text-align: right; white-space: nowrap; }
+  .history-del {
+    border: none; background: transparent; color: var(--text-faint);
+    font-size: 18px; line-height: 1; padding: 4px 6px; cursor: pointer; flex-shrink: 0;
+  }
+  .history-empty { padding: 24px 16px; text-align: center; color: var(--text-faint); font-size: 13px; }
+
   .rings-wrap {
     position: relative;
     width: 216px;
@@ -396,9 +425,26 @@
     </button>
   </div>
 
+  <div id="offlineBanner" class="banner banner-warn" style="display:none;">Hors-ligne : la connexion internet a été perdue.</div>
+
   <div class="segmented" role="tablist">
     <button class="segment active" data-tab="ping">Ping</button>
     <button class="segment" data-tab="speed">Débit</button>
+    <button class="segment" data-tab="history">Historique</button>
+  </div>
+
+  <div class="panel" id="connPanel">
+    <div class="list-row">
+      <label for="connSelect">Connexion testée</label>
+      <div class="select-wrap">
+        <select id="connSelect">
+          <option value="ethernet">Ethernet</option>
+          <option value="wifi5" selected>WiFi 5GHz</option>
+          <option value="wifi24">WiFi 2,4GHz</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
   </div>
 
   <div id="pingTab">
@@ -460,6 +506,7 @@
         <span><span class="swatch" style="background:var(--good)"></span>Bon, moins de 60 ms</span>
         <span><span class="swatch" style="background:var(--warn)"></span>Moyen, 60 à 150 ms</span>
         <span><span class="swatch" style="background:var(--bad)"></span>Élevé ou échec</span>
+        <span><span class="swatch" style="background:var(--text-faint)"></span>Suspect (app en arrière-plan)</span>
       </div>
       <div class="stats-row">
         <div class="stat"><div class="label">Envoyés</div><div class="value" id="statSent">0</div></div>
@@ -488,10 +535,10 @@
         <div class="stat"><div class="label">Gigue</div><div class="value" id="fJitter">–</div></div>
       </div>
       <div class="final-actions">
-        <button id="downloadPngBtn">Graphique</button>
-        <button id="downloadCsvBtn">Données</button>
+        <button id="downloadCsvBtn">Données (CSV)</button>
         <button id="resetBtn">Nouveau test</button>
       </div>
+      <div class="hint" id="periodicityNote" style="display:none;"></div>
     </div>
   </div>
 
@@ -530,6 +577,23 @@
       </div>
     </div>
   </div>
+
+  <div id="historyTab" style="display:none;">
+    <div class="panel">
+      <div class="actions-block" style="display:flex; gap:8px; padding:16px;">
+        <button class="primary-btn" id="shareReportBtn" style="flex:1;">Partager le rapport</button>
+      </div>
+      <div class="hint" id="historyHint">Les résultats de chaque test terminé sont enregistrés automatiquement sur cet appareil.</div>
+    </div>
+    <div class="panel">
+      <div id="historyList"></div>
+    </div>
+    <div class="panel">
+      <div class="actions-block">
+        <button class="secondary-full" id="clearHistoryBtn" style="background:transparent;border:1px solid var(--border);color:var(--bad);">Vider l'historique</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -561,10 +625,14 @@ document.querySelectorAll('.segment').forEach((btn) => {
     const tab = btn.dataset.tab;
     document.getElementById('pingTab').style.display = tab === 'ping' ? 'block' : 'none';
     document.getElementById('speedTab').style.display = tab === 'speed' ? 'block' : 'none';
+    document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('connPanel').style.display = tab === 'history' ? 'none' : 'block';
+    if (tab === 'history') renderHistory();
   });
 });
 
 // ---- Ping ----
+const connSelect = document.getElementById('connSelect');
 const targetSelect = document.getElementById('targetSelect');
 const customField = document.getElementById('customField');
 const customUrl = document.getElementById('customUrl');
@@ -591,6 +659,8 @@ let running = false;
 let timerHandle = null;
 let elapsedTimer = null;
 let durationMs = 60000;
+let justResumed = false;
+let wakeLockRef = null;
 
 function resizeCanvas(c) {
   const ratio = window.devicePixelRatio || 1;
@@ -607,6 +677,10 @@ function colorFor(ms) {
   if (ms < 60) return cssVar('--good');
   if (ms < 150) return cssVar('--warn');
   return cssVar('--bad');
+}
+
+function pointColor(d) {
+  return d.suspect ? cssVar('--text-faint') : colorFor(d.ms);
 }
 
 function drawBars(canvasEl, data) {
@@ -655,9 +729,14 @@ function drawBars(canvasEl, data) {
     }
   }
 
-  // Marqueurs : points au-delà du seuil "moyen", et échecs
+  // Marqueurs : points au-delà du seuil "moyen", échecs, et points suspects
   data.forEach((d, i) => {
-    if (d.ms === null) {
+    if (d.suspect) {
+      ctx.fillStyle = cssVar('--text-faint');
+      ctx.beginPath();
+      ctx.arc(px(i), d.ms === null ? padTop + 5 : py(d.ms), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.ms === null) {
       ctx.fillStyle = cssVar('--bad');
       ctx.beginPath();
       ctx.arc(px(i), padTop + 5, 3, 0, Math.PI * 2);
@@ -675,7 +754,7 @@ function drawSmoothSegment(ctx, data, start, end, px, py, baseline) {
   if (end < start) return;
 
   if (end === start) {
-    ctx.fillStyle = colorFor(data[start].ms);
+    ctx.fillStyle = pointColor(data[start]);
     ctx.beginPath();
     ctx.arc(px(start), py(data[start].ms), 2.5, 0, Math.PI * 2);
     ctx.fill();
@@ -705,7 +784,7 @@ function drawSmoothSegment(ctx, data, start, end, px, py, baseline) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Ligne, colorée par tronçon selon la qualité du point d'arrivée
+  // Ligne, colorée par tronçon selon la qualité du point d'arrivée (gris si suspect)
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -713,7 +792,7 @@ function drawSmoothSegment(ctx, data, start, end, px, py, baseline) {
   for (let i = 0; i < pts.length - 1; i++) {
     const mx = (pts[i].x + pts[i + 1].x) / 2;
     const my = (pts[i].y + pts[i + 1].y) / 2;
-    ctx.strokeStyle = colorFor(data[start + i + 1].ms);
+    ctx.strokeStyle = pointColor(data[start + i + 1]);
     ctx.beginPath();
     ctx.moveTo(prevX, prevY);
     ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
@@ -738,8 +817,9 @@ function hexToRgba(hex, alpha) {
 
 function computeStats(data) {
   const sent = data.length;
-  const fails = data.filter((d) => d.ms === null).length;
-  const valid = data.map((d) => d.ms).filter((v) => v !== null);
+  const fails = data.filter((d) => d.ms === null && !d.suspect).length;
+  const suspects = data.filter((d) => d.suspect).length;
+  const valid = data.filter((d) => d.ms !== null && !d.suspect).map((d) => d.ms);
   const min = valid.length ? Math.min(...valid) : null;
   const max = valid.length ? Math.max(...valid) : null;
   const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
@@ -749,7 +829,7 @@ function computeStats(data) {
     for (let i = 1; i < valid.length; i++) diffs.push(Math.abs(valid[i] - valid[i - 1]));
     jitter = diffs.reduce((a, b) => a + b, 0) / diffs.length;
   }
-  return { sent, fails, min, max, avg, jitter };
+  return { sent, fails, min, max, avg, jitter, suspects };
 }
 
 function fmt(v) { return v === null || v === undefined ? '–' : Math.round(v) + ' ms'; }
@@ -835,17 +915,19 @@ function pingOnce() {
   const t0 = performance.now();
   const controller = new AbortController();
   const to = setTimeout(() => controller.abort(), 5000);
+  const wasJustResumed = justResumed;
+  justResumed = false;
 
   fetch(url, { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
     .then(() => {
       clearTimeout(to);
       const dt = performance.now() - t0;
-      results.push({ t: Date.now(), ms: dt });
+      results.push({ t: Date.now(), ms: dt, suspect: wasJustResumed });
       renderLive();
     })
     .catch(() => {
       clearTimeout(to);
-      results.push({ t: Date.now(), ms: null });
+      results.push({ t: Date.now(), ms: null, suspect: wasJustResumed });
       renderLive();
     });
 }
@@ -859,13 +941,19 @@ function setControlsDisabled(disabled) {
 }
 
 function startTest() {
+  if (!navigator.onLine) {
+    liveStatusEl.textContent = 'Hors-ligne : impossible de démarrer';
+    return;
+  }
   results = [];
   finalSection.style.display = 'none';
+  document.getElementById('periodicityNote').style.display = 'none';
   running = true;
   setControlsDisabled(true);
   pingToggleBtn.textContent = 'Arrêter';
   pingToggleBtn.classList.add('is-stop');
   liveStatusEl.textContent = 'Test en cours';
+  requestWakeLock();
 
   const interval = parseInt(intervalSelect.value, 10);
   const durSec = parseInt(durationSelect.value, 10);
@@ -887,7 +975,36 @@ function stopTest() {
   pingToggleBtn.textContent = 'Démarrer';
   pingToggleBtn.classList.remove('is-stop');
   liveStatusEl.textContent = 'Terminé';
+  releaseWakeLock();
   renderFinal();
+
+  const s = computeStats(results);
+  const note = document.getElementById('periodicityNote');
+  const periodic = detectPeriodicity(results);
+  const lines = [];
+  if (periodic) {
+    lines.push('⚠️ Motif périodique détecté : pics toutes les ~' + periodic.intervalSeconds + 's environ (' + periodic.occurrences + ' occurrences).');
+  }
+  if (s.suspects > 0) {
+    lines.push(s.suspects + ' mesure(s) ignorée(s) car l\'app était en arrière-plan.');
+  }
+  if (lines.length) {
+    note.textContent = lines.join(' ');
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+  }
+
+  saveHistoryEntry({
+    type: 'ping',
+    conn: connSelect.value,
+    t: Date.now(),
+    target: targetSelect.value === 'custom' ? customUrl.value.trim() : targetSelect.value,
+    interval: parseInt(intervalSelect.value, 10),
+    sent: s.sent, fails: s.fails, suspects: s.suspects,
+    min: s.min, avg: s.avg, max: s.max, jitter: s.jitter,
+    periodic: periodic
+  });
 }
 
 pingToggleBtn.addEventListener('click', () => {
@@ -907,25 +1024,18 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   badge.style.boxShadow = 'none';
 });
 
-document.getElementById('downloadPngBtn').addEventListener('click', () => {
-  const link = document.createElement('a');
-  link.download = 'test-connexion-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
-  link.href = finalCanvas.toDataURL('image/png');
-  link.click();
-});
-
 document.getElementById('downloadCsvBtn').addEventListener('click', () => {
-  let csv = 'date,heure,latence_ms,echec\n';
+  let csv = 'date,heure,latence_ms,echec,suspect\n';
   results.forEach((r) => {
     const d = new Date(r.t);
     const iso = d.toISOString();
     const date = iso.slice(0, 10);
     const heure = iso.slice(11, 23);
-    csv += date + ',' + heure + ',' + (r.ms === null ? '' : r.ms.toFixed(1)) + ',' + (r.ms === null ? '1' : '0') + '\n';
+    csv += date + ',' + heure + ',' + (r.ms === null ? '' : r.ms.toFixed(1)) + ',' + (r.ms === null ? '1' : '0') + ',' + (r.suspect ? '1' : '0') + '\n';
   });
   const blob = new Blob([csv], { type: 'text/csv' });
   const link = document.createElement('a');
-  link.download = 'test-connexion-donnees-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+  link.download = 'ping-' + connSelect.value + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
   link.href = URL.createObjectURL(blob);
   link.click();
 });
@@ -936,6 +1046,176 @@ window.addEventListener('resize', () => {
 });
 
 drawBars(liveCanvas, []);
+
+// ---- Fiabilité : wake lock, arrière-plan, hors-ligne ----
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLockRef = await navigator.wakeLock.request('screen');
+  } catch (e) {
+    wakeLockRef = null;
+  }
+}
+function releaseWakeLock() {
+  if (wakeLockRef) {
+    wakeLockRef.release().catch(() => {});
+    wakeLockRef = null;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (running) {
+      justResumed = true;
+      requestWakeLock();
+    }
+  }
+});
+
+function updateOnlineState() {
+  const banner = document.getElementById('offlineBanner');
+  const offline = !navigator.onLine;
+  banner.style.display = offline ? 'block' : 'none';
+  pingToggleBtn.disabled = offline && !running;
+  speedStartBtn.disabled = offline && !running;
+}
+window.addEventListener('online', updateOnlineState);
+window.addEventListener('offline', updateOnlineState);
+updateOnlineState();
+
+function detectPeriodicity(data) {
+  const notable = data.filter((d) => d.ms === null || (d.ms >= 60 && !d.suspect));
+  if (notable.length < 4) return null;
+  const deltas = [];
+  for (let i = 1; i < notable.length; i++) deltas.push((notable[i].t - notable[i - 1].t) / 1000);
+  const buckets = {};
+  deltas.forEach((d) => {
+    const b = Math.round(d / 5) * 5;
+    if (b >= 5) buckets[b] = (buckets[b] || 0) + 1;
+  });
+  let bestBucket = null, bestCount = 0;
+  for (const b in buckets) {
+    if (buckets[b] > bestCount) { bestCount = buckets[b]; bestBucket = b; }
+  }
+  if (bestBucket && bestCount >= 3 && bestCount / deltas.length >= 0.3) {
+    return { intervalSeconds: Number(bestBucket), occurrences: bestCount };
+  }
+  return null;
+}
+
+// ---- Historique ----
+const HISTORY_KEY = 'nettest_history';
+const HISTORY_MAX = 15;
+
+function connLabel(v) {
+  return { ethernet: 'Ethernet', wifi5: 'WiFi 5GHz', wifi24: 'WiFi 2,4GHz', autre: 'Autre' }[v] || v;
+}
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+function persistHistory(list) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch (e) {}
+}
+function saveHistoryEntry(entry) {
+  entry.id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const list = loadHistory();
+  list.unshift(entry);
+  while (list.length > HISTORY_MAX) list.pop();
+  persistHistory(list);
+}
+function deleteHistoryEntry(id) {
+  persistHistory(loadHistory().filter((e) => e.id !== id));
+  renderHistory();
+}
+document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+  persistHistory([]);
+  renderHistory();
+});
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderHistory() {
+  const list = loadHistory();
+  const container = document.getElementById('historyList');
+  if (list.length === 0) {
+    container.innerHTML = '<div class="history-empty">Aucun test enregistré pour l\'instant.</div>';
+    return;
+  }
+  container.innerHTML = list.map((e) => {
+    if (e.type === 'ping') {
+      return '<div class="history-row">' +
+        '<div class="history-main">' +
+          '<div class="history-title">Ping — ' + connLabel(e.conn) + '</div>' +
+          '<div class="history-sub">' + formatDate(e.t) + (e.periodic ? ' · motif périodique' : '') + '</div>' +
+        '</div>' +
+        '<div class="history-value">moy ' + Math.round(e.avg || 0) + 'ms<br>max ' + Math.round(e.max || 0) + 'ms</div>' +
+        '<button class="history-del" data-id="' + e.id + '" aria-label="Supprimer">×</button>' +
+      '</div>';
+    }
+    return '<div class="history-row">' +
+      '<div class="history-main">' +
+        '<div class="history-title">Débit — ' + connLabel(e.conn) + '</div>' +
+        '<div class="history-sub">' + formatDate(e.t) + '</div>' +
+      '</div>' +
+      '<div class="history-value">↓ ' + (e.down != null ? e.down.toFixed(1) : '–') + '<br>↑ ' + (e.up != null ? e.up.toFixed(1) : '–') + '</div>' +
+      '<button class="history-del" data-id="' + e.id + '" aria-label="Supprimer">×</button>' +
+    '</div>';
+  }).join('');
+  container.querySelectorAll('.history-del').forEach((btn) => {
+    btn.addEventListener('click', () => deleteHistoryEntry(btn.dataset.id));
+  });
+}
+
+function buildReportText() {
+  const list = loadHistory();
+  if (list.length === 0) return 'Aucun test enregistré.';
+  let text = 'Rapport de diagnostic réseau — ' + new Date().toLocaleDateString('fr-FR') + '\n';
+  text += '========================================\n';
+  list.slice().reverse().forEach((e) => {
+    text += '\n[' + formatDate(e.t) + '] ' + connLabel(e.conn) + '\n';
+    if (e.type === 'ping') {
+      text += 'Ping — envoyés ' + e.sent + ', échecs ' + e.fails +
+        (e.suspects ? ' (+' + e.suspects + ' ignorés)' : '') +
+        ', min ' + Math.round(e.min || 0) + 'ms, moy ' + Math.round(e.avg || 0) + 'ms, max ' + Math.round(e.max || 0) + 'ms, gigue ' + Math.round(e.jitter || 0) + 'ms\n';
+      if (e.periodic) {
+        text += 'Motif périodique détecté : pics toutes les ~' + e.periodic.intervalSeconds + 's (' + e.periodic.occurrences + ' occurrences)\n';
+      }
+    } else {
+      text += 'Débit — descendant ' + (e.down != null ? e.down.toFixed(1) : '–') + ' Mbps, montant ' + (e.up != null ? e.up.toFixed(1) : '–') + ' Mbps\n';
+    }
+  });
+  return text;
+}
+
+document.getElementById('shareReportBtn').addEventListener('click', async () => {
+  const text = buildReportText();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Rapport de diagnostic réseau', text });
+      return;
+    } catch (e) {
+      // annulé ou indisponible : on retente le presse-papiers ci-dessous
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('shareReportBtn');
+    const original = btn.textContent;
+    btn.textContent = 'Copié dans le presse-papiers';
+    setTimeout(() => { btn.textContent = original; }, 1800);
+  } catch (e) {
+    alert(text);
+  }
+});
 
 // ---- Débit ----
 const ringDown = document.getElementById('ringDown');
@@ -994,6 +1274,10 @@ async function runThroughputPhase(direction, ms, ringEl) {
 }
 
 async function runSpeedTest() {
+  if (!navigator.onLine) {
+    speedPhaseLabel.textContent = 'Hors-ligne : impossible de démarrer';
+    return;
+  }
   speedStartBtn.disabled = true;
   pingToggleBtn.disabled = true;
   speedDownEl.textContent = '–';
@@ -1001,16 +1285,28 @@ async function runSpeedTest() {
   speedNumber.style.color = cssVar('--text');
   setRingProgress(ringDown, 0);
   setRingProgress(ringUp, 0);
+  requestWakeLock();
 
   const durationMs2 = parseInt(speedDurationSelect.value, 10) * 1000;
+  let down = null, up = null;
 
   try {
     speedPhaseLabel.textContent = 'Test descendant en cours';
-    const down = await runThroughputPhase('down', durationMs2, ringDown);
+    down = await runThroughputPhase('down', durationMs2, ringDown);
     speedDownEl.textContent = down.toFixed(1) + ' Mbps';
+  } catch (e) {
+    speedDownEl.textContent = 'Échec';
+    speedPhaseLabel.textContent = 'Débit descendant interrompu : connexion perdue en cours de mesure';
+    releaseWakeLock();
+    saveHistoryEntry({ type: 'speed', conn: connSelect.value, t: Date.now(), down: null, up: null });
+    speedStartBtn.disabled = false;
+    pingToggleBtn.disabled = false;
+    return;
+  }
 
+  try {
     speedPhaseLabel.textContent = 'Test montant en cours';
-    const up = await runThroughputPhase('up', durationMs2, ringUp);
+    up = await runThroughputPhase('up', durationMs2, ringUp);
     speedUpEl.textContent = up.toFixed(1) + ' Mbps';
 
     // Bilan final : les deux anneaux se réajustent l'un par rapport à l'autre
@@ -1026,12 +1322,15 @@ async function runSpeedTest() {
 
     speedPhaseLabel.textContent = 'Terminé';
   } catch (e) {
-    speedPhaseLabel.textContent = 'Échec du test (connexion ou serveur indisponible)';
+    speedUpEl.textContent = 'Échec';
+    speedPhaseLabel.textContent = 'Débit montant interrompu : connexion perdue en cours de mesure';
   } finally {
     speedNumber.innerHTML = '—';
     speedNumber.style.color = cssVar('--text-faint');
     speedStartBtn.disabled = false;
     pingToggleBtn.disabled = false;
+    releaseWakeLock();
+    saveHistoryEntry({ type: 'speed', conn: connSelect.value, t: Date.now(), down: down, up: up });
   }
 }
 
