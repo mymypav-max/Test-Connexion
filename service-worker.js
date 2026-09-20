@@ -1,4 +1,4 @@
-const CACHE_NAME = 'testeur-connexion-v1';
+const CACHE_NAME = 'testeur-connexion-v1.1';
 const APP_SHELL = [
   './',
   './index.html',
